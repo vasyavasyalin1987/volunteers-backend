@@ -6,6 +6,8 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=159357
       - POSTGRES_DB=hakanton_db
+    volumes:
+      - ./dump.sql:/docker-entrypoint-initdb.d/dump.sql
     ports:
       - "5432:5432"
     networks:
@@ -13,7 +15,7 @@ services:
     restart: unless-stopped
 
   nodeapp:
-    build: . # Uses the Dockerfile in the project root
+    build: .
     working_dir: /app
     environment:
       - DB_NAME=hakanton_db
@@ -22,15 +24,12 @@ services:
       - DB_HOST=postgres
       - DB_PORT=5432
     ports:
-      - "3000:3000" # Map to your Node.js server's port
+      - "3000:3000"
     depends_on:
       - postgres
     networks:
       - app-network
     restart: unless-stopped
-
-volumes:
-  pgdata:
 
 networks:
   app-network:
