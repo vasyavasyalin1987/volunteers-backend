@@ -1,8 +1,10 @@
 const express = require("express");
 const app = express();
 const port = 3000;
+const httpPort = 3001; // Порт для HTTP
 const path = require("path");
 const https = require("https");
+const http = require("http");
 const fs = require("fs");
 const {
 	client,
@@ -972,6 +974,10 @@ https
 		console.log(`Сервер запущен на https://localhost:${port}`);
 		connectToDatabase();
 	});
+
+http.createServer(app).listen(httpPort, () => {
+	console.log(`HTTP-сервер запущен на http://localhost:${httpPort}`);
+});
 
 process.on("SIGINT", async () => {
 	//  Ctrl+C
