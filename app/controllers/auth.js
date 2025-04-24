@@ -24,6 +24,7 @@ async function authenticateUser(login, password) {
 				id: user.id,
 				login: user.login,
 				role: user.role.naim,
+				token: user.token,
 			},
 		};
 	} catch (error) {
