@@ -43,6 +43,11 @@ const Account = sequelize.define(
 			type: DataTypes.INTEGER,
 			allowNull: false,
 		},
+		token: {
+			type: DataTypes.TEXT,
+			allowNull: false,
+			unique: true,
+		},
 	},
 	{
 		tableName: "account",
@@ -144,10 +149,6 @@ const Volonter = sequelize.define(
 			allowNull: true,
 		},
 		tel: {
-			type: DataTypes.TEXT,
-			allowNull: true,
-		},
-		mail: {
 			type: DataTypes.TEXT,
 			allowNull: true,
 		},

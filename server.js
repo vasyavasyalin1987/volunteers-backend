@@ -6,6 +6,7 @@ const path = require("path");
 const https = require("https");
 const http = require("http");
 const fs = require("fs");
+const crypto = require("crypto");
 const {
 	client,
 	disconnectFromDatabase,
@@ -27,6 +28,7 @@ const privateKey = fs.readFileSync("localhost+2-key.pem");
 const certificate = fs.readFileSync("localhost+2.pem");
 const { Op } = require("sequelize");
 const { count } = require("console");
+const passport = require("passport");
 app.use(express.json());
 app.use(
 	session({
@@ -37,58 +39,78 @@ app.use(
 	})
 );
 
-const isAdmin = (req, res, next) => {
+function generatePassword() {
+	var length = 8,
+		charset =
+			"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+	res = "";
+	for (var i = 0, n = charset.length; i < length; ++i) {
+		res += charset.charAt(Math.floor(Math.random() * n));
+	}
+	return res;
+}
+
+const isAdmin = async (req, res, next) => {
 	// Проверка на администратора
 	try {
-		if (
-			req.session &&
-			req.session.user &&
-			req.session.user.dolzhnost === "Администратор"
-		) {
+		token_body = req.headers.token;
+
+		const acc = await Account.findOne({
+			where: {
+				token: token_body,
+			},
+		});
+
+		if (acc.role_id == 1) {
 			return next();
 		}
 	} catch {
-		res.status(403).redirect("/login");
+		res.sendStatus(403);
 	}
-
-	res.status(403).redirect("/login");
+	res.sendStatus(403);
 };
 
-const isPartner = (req, res, next) => {
+const isPartner = async (req, res, next) => {
 	// Проверка на предприятия-партнёра
 	try {
-		if (
-			req.session &&
-			req.session.user &&
-			req.session.user.dolzhnost === "Предприятие-партнёр"
-		) {
+		token_body = req.headers.token;
+
+		const acc = await Account.findOne({
+			where: {
+				token: token_body,
+			},
+		});
+
+		if (acc.role_id == 2) {
 			return next();
 		}
 	} catch {
-		res.status(403).redirect("/login");
+		res.sendStatus(403);
 	}
-
-	res.status(403).redirect("/login");
+	res.sendStatus(403);
 };
 
-const isVolonter = (req, res, next) => {
+const isVolonter = async (req, res, next) => {
 	// Проверка на волонтёра
 	try {
-		if (
-			req.session &&
-			req.session.user &&
-			req.session.user.dolzhnost === "Волонтёр"
-		) {
+		token_body = req.headers.token;
+
+		const acc = await Account.findOne({
+			where: {
+				token: token_body,
+			},
+		});
+
+		if (acc.role_id == 3) {
 			return next();
 		}
 	} catch {
-		res.status(403).redirect("/login");
+		res.sendStatus(403);
 	}
-
-	res.status(403).redirect("/login");
+	res.sendStatus(403);
 };
 
-app.post("/add_bonus", async (req, res) => {
+app.post("/add_bonus", isAdmin, async (req, res) => {
 	try {
 		// Логируем тело запроса для диагностики
 		console.log("Received request body:", req.body);
@@ -142,22 +164,28 @@ app.post("/add_bonus", async (req, res) => {
 			const formattedBirthDate = `${year}-${month}-${day}`;
 
 			// Ищем волонтера
-			const volonter = await Volonter.findOne({
+			let volonter = await Volonter.findOne({
 				where: {
 					fio: bonusData.fullName,
 					inn: bonusData.inn,
 					tel: bonusData.phone,
-					mail: bonusData.email,
-					DOB: formattedBirthDate, // Используем преобразованную дату
+					DOB: formattedBirthDate,
 				},
 				include: [{ model: Account, as: "account" }],
 			});
 
 			if (!volonter) {
-				return res.status(404).json({
-					error: `Volunteer with data ${JSON.stringify(
-						bonusData
-					)} not found`,
+				acc = await Account.create({
+					login: bonusData.email,
+					password: generatePassword(),
+				});
+
+				volonter = await Volonter.create({
+					id_acc: acc.id,
+					fio: bonusData.fullName,
+					inn: bonusData.inn,
+					tel: bonusData.phone,
+					DOB: bonusData.formattedBirthDate,
 				});
 			}
 
@@ -167,9 +195,7 @@ app.post("/add_bonus", async (req, res) => {
 			});
 
 			if (!bonusRecord) {
-				return res.status(404).json({
-					error: `Bonus with name ${bonusData.achievements} not found at index ${i}`,
-				});
+				continue;
 			}
 
 			// Создаем запись в таблице NachBonus
@@ -197,7 +223,7 @@ app.post("/add_bonus", async (req, res) => {
 	}
 });
 
-app.get("/all_bonuses", async (req, res) => {
+app.get("/all_bonuses", isAdmin, async (req, res) => {
 	try {
 		// Получаем ID авторизированного пользователя
 		const userId = req.session.user.id;
@@ -252,12 +278,12 @@ app.get("/all_bonuses", async (req, res) => {
 				{
 					model: Volonter,
 					as: "volonter",
-					attributes: ["fio", "tel", "mail"],
+					attributes: ["fio", "tel"],
 					include: [
 						{
 							model: Account,
 							as: "account",
-							attributes: [["login", "account_login"]], // Переименовываем login в account_login
+							attributes: [["login", "account_login"], "mail"], // Переименовываем login в account_login
 						},
 					],
 				},
@@ -294,12 +320,12 @@ app.get("/all_bonuses", async (req, res) => {
 				{
 					model: Volonter,
 					as: "volonter",
-					attributes: ["fio", "tel", "mail"],
+					attributes: ["fio", "tel"],
 					include: [
 						{
 							model: Account,
 							as: "account",
-							attributes: [["login", "account_login"]], // Переименовываем login в account_login
+							attributes: [["login", "account_login"], "mail"], // Переименовываем login в account_login
 						},
 					],
 				},
@@ -319,7 +345,6 @@ app.get("/all_bonuses", async (req, res) => {
 				volonter: {
 					full_name: nachBonus.volonter?.full_name || null,
 					tel: nachBonus.volonter?.tel || null,
-					mail: nachBonus.volonter?.mail || null,
 					account_login:
 						nachBonus.volonter?.account?.account_login || null,
 				},
@@ -334,7 +359,6 @@ app.get("/all_bonuses", async (req, res) => {
 				volonter: {
 					full_name: nachBonus.volonter?.full_name || null,
 					tel: nachBonus.volonter?.tel || null,
-					mail: nachBonus.volonter?.mail || null,
 					account_login:
 						nachBonus.volonter?.account?.account_login || null,
 				},
@@ -348,7 +372,7 @@ app.get("/all_bonuses", async (req, res) => {
 	}
 });
 
-app.post("/bonuses_volonter", async (req, res) => {
+app.post("/bonuses_volonter", isVolonter, async (req, res) => {
 	// Бонусы полученные волонтёром
 	try {
 		const { accountId } = req.body;
@@ -448,7 +472,7 @@ app.post("/bonuses_volonter", async (req, res) => {
 	}
 });
 
-app.post("/bonuses_partner", async (req, res) => {
+app.post("/bonuses_partner", isPartner, async (req, res) => {
 	try {
 		// Получаем ID авторизированного пользователя
 		const userId = req.session.user.id;
@@ -554,7 +578,7 @@ app.post("/add_bonuse_partner", isPartner, async (req, res) => {
 	}
 });
 
-app.post("/change_bonus", async (req, res) => {
+app.post("/change_bonus", isPartner, async (req, res) => {
 	try {
 		// Получаем ID авторизированного пользователя
 		const userId = req.session.user.id;
@@ -654,7 +678,7 @@ app.get("/all_volonters", isAdmin, async (req, res) => {
 					attributes: "login",
 				},
 			],
-			attributes: ["id", "fio", "inn", "tel", "mail", "DOB"],
+			attributes: ["id", "fio", "inn", "tel", "DOB"],
 		});
 
 		// Формируем ответ
@@ -665,7 +689,7 @@ app.get("/all_volonters", isAdmin, async (req, res) => {
 	}
 });
 
-app.get("/all_partners", async (req, res) => {
+app.get("/all_partners", isAdmin, async (req, res) => {
 	try {
 		// Получаем всех партнеров
 		const partners = await Partner.findAll({
@@ -761,7 +785,6 @@ app.get("/user_info", async (req, res) => {
 						fio: account.volonter.fio,
 						inn: account.volonter.inn,
 						phone: account.volonter.tel,
-						email: account.volonter.mail,
 						birthDate: account.volonter.DOB,
 					},
 				};
@@ -783,11 +806,11 @@ app.get("/user_info", async (req, res) => {
 
 app.post("/register_volonter", async (req, res) => {
 	try {
-		const { login, password, fio, inn, tel, mail, dob } = req.body;
+		const { login, password, fio, inn, tel, dob } = req.body;
 
-		if (!login || !password || !fio || !tel || !mail) {
+		if (!login || !password || !fio || !tel) {
 			return res.status(400).json({
-				error: "Обязательные поля (login, password, fio, tel, mail) должны быть заполнены",
+				error: "Обязательные поля (login, password, fio, tel) должны быть заполнены",
 			});
 		}
 
@@ -798,6 +821,9 @@ app.post("/register_volonter", async (req, res) => {
 				error: "Логин уже занят",
 			});
 		}
+		console.log("token");
+		const token = crypto.randomBytes(32).toString("hex");
+		console.log(token);
 
 		const result = await sequelize.transaction(async (t) => {
 			// Создаём запись в таблице account
@@ -805,6 +831,7 @@ app.post("/register_volonter", async (req, res) => {
 				{
 					login: login,
 					password: password,
+					token: token,
 					role_id: 3, // id роли волонтёра
 				},
 				{ transaction: t }
@@ -816,18 +843,18 @@ app.post("/register_volonter", async (req, res) => {
 					fio: fio,
 					inn: inn || null,
 					tel: tel,
-					mail: mail,
 					DOB: dob || null,
 					id_acc: newAccount.id,
 				},
 				{ transaction: t }
 			);
 
-			return { account: newAccount, volonter: newVolonter };
+			return { account: newAccount, volonter: newVolonter, token: token };
 		});
 
 		res.status(201).json({
 			message: "Регистрация успешна",
+			data: result,
 		});
 	} catch (error) {
 		console.error("Ошибка при регистрации волонтёра:", error.message);
@@ -856,12 +883,15 @@ app.post("/register_partner", async (req, res) => {
 			});
 		}
 
+		const token = crypto.randomBytes(32).toString("hex");
+
 		const result = await sequelize.transaction(async (t) => {
 			// Создаём запись в таблице account
 			const newAccount = await Account.create(
 				{
 					login: login,
 					password: password,
+					token: token,
 					role_id: 2, // id роли предприятия-партнёра
 				},
 				{ transaction: t }
@@ -876,11 +906,12 @@ app.post("/register_partner", async (req, res) => {
 				{ transaction: t }
 			);
 
-			return { account: newAccount, partner: newPartner };
+			return { account: newAccount, partner: newPartner, token: token };
 		});
 
 		res.status(201).json({
 			message: "Регистрация успешна",
+			data: result,
 		});
 	} catch (error) {
 		console.error("Ошибка при регистрации партнёра:", error.message);
