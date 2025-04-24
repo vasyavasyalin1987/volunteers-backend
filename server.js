@@ -723,29 +723,39 @@ app.get("/all_partners", isAdmin, async (req, res) => {
 
 app.get("/user_info", async (req, res) => {
 	try {
-		// Проверяем, авторизован ли пользователь
-		const token_body = req.headers.token;
+		// Получаем токен из заголовков
+		const token = req.headers.token;
 
-		const acc = await Account.findOne({
-			where: {
-				token: token_body,
-			},
-		});
-
-		if (!acc) {
-			return res.status(401).json({ error: "User not authenticated" });
+		if (!token) {
+			return res.status(401).json({ error: "Token is required" });
 		}
 
-		const roleName = req.session.user.role.naim;
-		const userLogin = req.session.user.login;
-
-		// Ищем аккаунт пользователя
+		// Ищем аккаунт пользователя по токену
 		const account = await Account.findOne({
-			where: { login: userLogin },
+			where: { token },
 			include: [
 				{ model: Role, as: "role" },
-				{ model: Volonter, as: "volonter" }, // Для волонтёра
-				{ model: Partner, as: "partner" }, // Для партнёра
+				{
+					model: Volonter,
+					as: "volonter",
+					include: [
+						{
+							model: NachBonus,
+							as: "nachBonuses",
+							include: [
+								{
+									model: Bonus,
+									as: "bonus",
+									include: [
+										{ model: Partner, as: "partner" },
+										{ model: Category, as: "category" },
+									],
+								},
+							],
+						},
+					],
+				},
+				{ model: Partner, as: "partner" },
 			],
 		});
 
@@ -754,12 +764,15 @@ app.get("/user_info", async (req, res) => {
 		}
 
 		// Формируем ответ в зависимости от роли
+		const roleName = account.role.naim;
 		let userInfo;
+
 		switch (roleName) {
 			case "Администратор":
 				userInfo = {
-					role: roleName,
+					id: account.id,
 					login: account.login,
+					role: roleName,
 				};
 				break;
 
@@ -770,9 +783,13 @@ app.get("/user_info", async (req, res) => {
 						.json({ error: "Partner data not found" });
 				}
 				userInfo = {
-					role: roleName,
+					id: account.id,
 					login: account.login,
-					partnerName: account.partner.naim,
+					role: roleName,
+					partner: {
+						id: account.partner.id,
+						name: account.partner.naim,
+					},
 				};
 				break;
 
@@ -783,13 +800,44 @@ app.get("/user_info", async (req, res) => {
 						.json({ error: "Volunteer data not found" });
 				}
 				userInfo = {
-					role: roleName,
+					id: account.id,
 					login: account.login,
-					volunteerData: {
+					role: roleName,
+					volunteer: {
+						id: account.volonter.id,
 						fio: account.volonter.fio,
 						inn: account.volonter.inn,
 						phone: account.volonter.tel,
 						birthDate: account.volonter.DOB,
+						bonuses:
+							account.volonter.nachBonuses?.map((nachBonus) => ({
+								id: nachBonus.id,
+								date: nachBonus.date_nach,
+								isExpired: nachBonus.is_expired,
+								bonus: nachBonus.bonus
+									? {
+											id: nachBonus.bonus.id,
+											name: nachBonus.bonus.naim,
+											count: nachBonus.bonus.count,
+											partner: nachBonus.bonus.partner
+												? {
+														id: nachBonus.bonus
+															.partner.id,
+														name: nachBonus.bonus
+															.partner.naim,
+												  }
+												: null,
+											category: nachBonus.bonus.category
+												? {
+														id: nachBonus.bonus
+															.category.id,
+														name: nachBonus.bonus
+															.category.naim,
+												  }
+												: null,
+									  }
+									: null,
+							})) || [],
 					},
 				};
 				break;
@@ -807,7 +855,6 @@ app.get("/user_info", async (req, res) => {
 		res.status(500).json({ error: "Internal server error" });
 	}
 });
-
 app.post("/register_volonter", async (req, res) => {
 	try {
 		const { login, password, fio, inn, tel, dob } = req.body;
