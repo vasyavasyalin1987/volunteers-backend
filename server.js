@@ -580,10 +580,8 @@ app.get("/all_volonters", isPartner, async (req, res) => {
 				{
 					model: Account,
 					as: "account",
-					attributes: "login",
 				},
 			],
-			attributes: ["id", "fio", "inn", "tel", "DOB"],
 		});
 
 		// Формируем ответ
