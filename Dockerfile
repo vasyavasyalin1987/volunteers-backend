@@ -3,4 +3,4 @@ WORKDIR /app
 COPY . .
 RUN npm install
 COPY . .
-CMD ["sleep", "infinity"]
+CMD ["node", "server.js"]
