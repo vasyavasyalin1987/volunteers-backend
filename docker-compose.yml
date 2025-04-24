@@ -31,12 +31,6 @@ services:
     networks:
       - app-network
     restart: unless-stopped
-    # No 'command:' needed (defined in Dockerfile)
-    # No 'volumes:' for code (already copied in Dockerfile)
-    # Add this if you need live code reloading in development:
-    volumes:
-      - .:/app
-      - /app/node_modules # Prevent host/node_modules overwrite
 
 volumes:
   pgdata:
