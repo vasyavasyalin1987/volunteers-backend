@@ -10,8 +10,8 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./dump.sql:/docker-entrypoint-initdb.d/dump.sql
+      - postgres_data:/var/lib/postgresql/data
+      - ./dump.sql:/docker-entrypoint-initdb.d/00-import.sql # Force import on init
     networks:
       - app-network
     restart: unless-stopped
@@ -34,7 +34,12 @@ services:
     restart: unless-stopped
 
 volumes:
-  pgdata:
+  postgres_data:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: ${PWD}/postgres-data # Explicit local path for easy cleanup
 
 networks:
   app-network:
