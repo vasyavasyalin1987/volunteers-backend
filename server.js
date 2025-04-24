@@ -962,21 +962,8 @@ app.post("/login", async (req, res) => {
 	}
 });
 
-https
-	.createServer(
-		{
-			key: privateKey,
-			cert: certificate,
-		},
-		app
-	)
-	.listen(port, () => {
-		console.log(`Сервер запущен на https://localhost:${port}`);
-		connectToDatabase();
-	});
-
-http.createServer(app).listen(httpPort, () => {
-	console.log(`HTTP-сервер запущен на http://localhost:${httpPort}`);
+http.createServer(app).listen(port, () => {
+	console.log(`HTTP-сервер запущен на http://localhost:${port}`);
 });
 
 process.on("SIGINT", async () => {
