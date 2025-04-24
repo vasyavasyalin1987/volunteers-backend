@@ -663,7 +663,7 @@ app.get("/all_volonters", isAdmin, async (req, res) => {
 	}
 });
 
-app.get("/all_partner", async (req, res) => {
+app.get("/all_partners", async (req, res) => {
 	try {
 		// Получаем всех партнеров
 		const partners = await Partner.findAll({
