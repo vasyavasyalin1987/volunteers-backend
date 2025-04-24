@@ -6,9 +6,6 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=159357
       - POSTGRES_DB=hakanton_db
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./dump.sql:/docker-entrypoint-initdb.d/dump.sql
     ports:
       - "5432:5432"
     networks:
