@@ -724,11 +724,15 @@ app.get("/all_partners", isAdmin, async (req, res) => {
 app.get("/user_info", async (req, res) => {
 	try {
 		// Проверяем, авторизован ли пользователь
-		if (
-			!req.session.user ||
-			!req.session.user.role ||
-			!req.session.user.role.naim
-		) {
+		token_body = req.headers.token;
+
+		const acc = await Account.findOne({
+			where: {
+				token: token_body,
+			},
+		});
+
+		if (!acc) {
 			return res.status(401).json({ error: "User not authenticated" });
 		}
 
