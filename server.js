@@ -572,15 +572,8 @@ app.post("/change_bonus", isPartner, async (req, res) => {
 	}
 });
 
-app.get("/all_volonters", isAdmin, async (req, res) => {
+app.get("/all_volonters", isPartner, async (req, res) => {
 	try {
-		// Проверяем, существует ли аккаунт и связанный партнер
-		if (!account || !account.partner) {
-			return res
-				.status(403)
-				.json({ error: "Пользователь не является партнером" });
-		}
-
 		// Получаем всех волонтеров
 		const volonters = await Volonter.findAll({
 			include: [
