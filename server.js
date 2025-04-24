@@ -724,7 +724,7 @@ app.get("/all_partners", isAdmin, async (req, res) => {
 app.get("/user_info", async (req, res) => {
 	try {
 		// Проверяем, авторизован ли пользователь
-		token_body = req.headers.token;
+		const token_body = req.headers.token;
 
 		const acc = await Account.findOne({
 			where: {
