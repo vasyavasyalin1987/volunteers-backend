@@ -6,23 +6,26 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=159357
       - POSTGRES_DB=hakanton_db
+      - POSTGRES_HOST_AUTH_METHOD=trust # This disables password authentication
     ports:
       - "5432:5432"
     networks:
       - app-network
     restart: unless-stopped
+    volumes:
+      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf # Optional: custom HBA config
 
   nodeapp:
-    build: . # Uses the Dockerfile in the project root
+    build: .
     working_dir: /app
     environment:
       - DB_NAME=hakanton_db
       - DB_USER=postgres
-      - DB_PASSWORD=159357
+      - DB_PASSWORD=159357 # Can be removed if you want
       - DB_HOST=postgres
       - DB_PORT=5432
     ports:
-      - "3000:3000" # Map to your Node.js server's port
+      - "3000:3000"
     depends_on:
       - postgres
     networks:
