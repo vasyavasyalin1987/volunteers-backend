@@ -1,5 +1,6 @@
 const { Sequelize, DataTypes } = require("sequelize");
 const { client, sequelize } = require("./client");
+const { differenceInMonths } = require("date-fns");
 
 // Определение моделей
 const Role = sequelize.define(
@@ -160,6 +161,10 @@ const Volonter = sequelize.define(
 			type: DataTypes.INTEGER,
 			allowNull: false,
 		},
+		dost: {
+			type: DataTypes.TEXT,
+			allowNull: true,
+		},
 	},
 	{
 		tableName: "volonter",
@@ -188,7 +193,7 @@ const NachBonus = sequelize.define(
 			type: DataTypes.INTEGER,
 			allowNull: true,
 		},
-		is_expired: {
+		/*is_expired: {
 			type: DataTypes.VIRTUAL, // Виртуальное поле, не хранится в базе данных
 			get() {
 				if (!this.time_nach) return false; // Если time_nach не задано, возвращаем false
@@ -197,7 +202,7 @@ const NachBonus = sequelize.define(
 				const monthsDiff = differenceInMonths(currentDate, timeNach);
 				return monthsDiff > 6;
 			},
-		},
+		},*/
 	},
 	{
 		tableName: "nach_bonus",

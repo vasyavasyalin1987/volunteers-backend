@@ -26,7 +26,7 @@ const {
 } = require("./app/models/modelsDB");
 const privateKey = fs.readFileSync("localhost+2-key.pem");
 const certificate = fs.readFileSync("localhost+2.pem");
-const { Op } = require("sequelize");
+const { Op, where } = require("sequelize");
 const { count } = require("console");
 const passport = require("passport");
 app.use(express.json());
@@ -174,6 +174,15 @@ app.post("/add_bonus", isAdmin, async (req, res) => {
 				include: [{ model: Account, as: "account" }],
 			});
 
+			await Volonter.update({
+				where: {
+					fio: bonusData.fullName,
+					inn: bonusData.inn,
+					tel: bonusData.phone,
+					DOB: formattedBirthDate,
+				},
+			});
+
 			if (!volonter) {
 				acc = await Account.create({
 					login: bonusData.email,
@@ -201,7 +210,7 @@ app.post("/add_bonus", isAdmin, async (req, res) => {
 			// Создаем запись в таблице NachBonus
 			const newNachBonus = await NachBonus.create({
 				id_bonus: bonusRecord.id, // Используем id бонуса
-				time_nach: new Date(),
+				date_nach: new Date(),
 				id_volonter: volonter.id,
 			});
 
@@ -209,7 +218,7 @@ app.post("/add_bonus", isAdmin, async (req, res) => {
 				id: newNachBonus.id,
 				bonus_id: newNachBonus.id_bonus,
 				volunteer_id: newNachBonus.id_volonter,
-				time_nach: newNachBonus.time_nach,
+				date_nach: newNachBonus.date_nach,
 			});
 		}
 
@@ -225,55 +234,25 @@ app.post("/add_bonus", isAdmin, async (req, res) => {
 
 app.get("/all_bonuses", isAdmin, async (req, res) => {
 	try {
-		// Получаем ID авторизированного пользователя
-		const userId = req.session.user.id;
-
-		// Проверяем, что пользователь является партнером (role_id = 2)
-		const account = await Account.findOne({
-			where: {
-				id: userId,
-				role_id: 2,
-			},
-			include: [
-				{
-					model: Partner,
-					as: "partner",
-				},
-			],
-		});
-
-		// Проверяем, существует ли аккаунт и связанный партнер
-		if (!account || !account.partner) {
-			return res
-				.status(403)
-				.json({ error: "Пользователь не является партнером" });
-		}
-
-		// Получаем список неистекших бонусов
-		const activeBonuses = await NachBonus.findAll({
-			where: {
-				is_expired: false, // Неистекшие бонусы
-			},
+		// Fetch all bonuses without filtering by is_expired in the database
+		const bonuses = await NachBonus.findAll({
 			include: [
 				{
 					model: Bonus,
 					as: "bonus",
-					where: {
-						id_partner: account.partner.id,
-					},
 					include: [
 						{
 							model: Partner,
 							as: "partner",
-							attributes: [["naim", "partner_name"]], // Переименовываем naim в partner_name
+							attributes: [["naim", "partner_name"]],
 						},
 						{
 							model: Category,
 							as: "category",
-							attributes: [["naim", "category_name"]], // Переименовываем naim в category_name
+							attributes: [["naim", "category_name"]],
 						},
 					],
-					attributes: ["id", ["naim", "bonus_name"], "count"], // Переименовываем naim в bonus_name
+					attributes: ["id", ["naim", "bonus_name"], "count"],
 				},
 				{
 					model: Volonter,
@@ -283,89 +262,59 @@ app.get("/all_bonuses", isAdmin, async (req, res) => {
 						{
 							model: Account,
 							as: "account",
-							attributes: [["login", "account_login"], "mail"], // Переименовываем login в account_login
+							attributes: [
+								["login", "account_login"],
+								"mail",
+								"dost",
+							],
 						},
 					],
 				},
 			],
-			attributes: ["id", "id_bonus", "date_nach", "is_expired"],
+			attributes: ["id", "id_bonus", "date_nach"],
 		});
 
-		// Получаем список истекших бонусов
-		const expiredBonuses = await NachBonus.findAll({
-			where: {
-				is_expired: true, // Истекшие бонусы
-			},
-			include: [
-				{
-					model: Bonus,
-					as: "bonus",
-					where: {
-						id_partner: account.partner.id,
+		// Split bonuses into active and expired based on is_expired virtual field
+		/*const activeBonuses = bonuses.filter(
+				(nachBonus) => !nachBonus.is_expired
+			);
+			const expiredBonuses = bonuses.filter(
+				(nachBonus) => nachBonus.is_expired
+			);
+
+			// Form the response
+			const result = {
+				resultBonus: activeBonuses.map((nachBonus) => ({
+					bonus_id: 2147483647 - nachBonus.id_bonus,
+					bonus_name: nachBonus.bonus.bonus_name,
+					partner: nachBonus.bonus.partner.partner_name,
+					category: nachBonus.bonus.category?.category_name || null,
+					count: nachBonus.bonus.count,
+					time_received: nachBonus.date_nach,
+					volonter: {
+						full_name: nachBonus.volonter?.fio || null,
+						tel: nachBonus.volonter?.tel || null,
+						account_login:
+							nachBonus.volonter?.account?.account_login || null,
 					},
-					include: [
-						{
-							model: Partner,
-							as: "partner",
-							attributes: [["naim", "partner_name"]], // Переименовываем naim в partner_name
-						},
-						{
-							model: Category,
-							as: "category",
-							attributes: [["naim", "category_name"]], // Переименовываем naim в category_name
-						},
-					],
-					attributes: ["id", ["naim", "bonus_name"], "count"], // Переименовываем naim в bonus_name
-				},
-				{
-					model: Volonter,
-					as: "volonter",
-					attributes: ["fio", "tel"],
-					include: [
-						{
-							model: Account,
-							as: "account",
-							attributes: [["login", "account_login"], "mail"], // Переименовываем login в account_login
-						},
-					],
-				},
-			],
-			attributes: ["id", "id_bonus", "date_nach", "is_expired"],
-		});
+				})),
+				resultExpiredBonus: expiredBonuses.map((nachBonus) => ({
+					bonus_id: 2147483647 - nachBonus.id_bonus,
+					bonus_name: nachBonus.bonus.bonus_name,
+					partner: nachBonus.bonus.partner.partner_name,
+					category: nachBonus.bonus.category?.category_name || null,
+					count: nachBonus.bonus.count,
+					time_received: nachBonus.date_nach,
+					volonter: {
+						full_name: nachBonus.volonter?.fio || null,
+						tel: nachBonus.volonter?.tel || null,
+						account_login:
+							nachBonus.volonter?.account?.account_login || null,
+					},
+				})),
+			};*/
 
-		// Формируем ответ
-		const result = {
-			resultBonus: activeBonuses.map((nachBonus) => ({
-				bonus_id: 2147483647 - nachBonus.id_bonus, // Генерация идентификатора бонуса
-				bonus_name: nachBonus.bonus.bonus_name,
-				partner: nachBonus.bonus.partner.partner_name,
-				category: nachBonus.bonus.category?.category_name || null,
-				count: nachBonus.bonus.count,
-				time_received: nachBonus.date_nach,
-				volonter: {
-					full_name: nachBonus.volonter?.full_name || null,
-					tel: nachBonus.volonter?.tel || null,
-					account_login:
-						nachBonus.volonter?.account?.account_login || null,
-				},
-			})),
-			resultExpiredBonus: expiredBonuses.map((nachBonus) => ({
-				bonus_id: 2147483647 - nachBonus.id_bonus, // Генерация идентификатора бонуса
-				bonus_name: nachBonus.bonus.bonus_name,
-				partner: nachBonus.bonus.partner.partner_name,
-				category: nachBonus.bonus.category?.category_name || null,
-				count: nachBonus.bonus.count,
-				time_received: nachBonus.date_nach,
-				volonter: {
-					full_name: nachBonus.volonter?.full_name || null,
-					tel: nachBonus.volonter?.tel || null,
-					account_login:
-						nachBonus.volonter?.account?.account_login || null,
-				},
-			})),
-		};
-
-		res.status(200).json(result);
+		res.status(200).json(bonuses);
 	} catch (error) {
 		console.error("Error fetching bonuses:", error);
 		res.status(500).json({ error: "Internal server error" });
@@ -390,38 +339,9 @@ app.post("/bonuses_volonter", isVolonter, async (req, res) => {
 			return res.status(403).json({ error: "User is not a volunteer" });
 		}
 
-		// Получаем список бонусов волонтера
-		const expiredBonuses = await NachBonus.findAll({
-			where: {
-				id_volonter: volonter.id,
-				is_expired: false, // Получаем только неистекшие бонусы
-			},
-			include: [
-				{
-					model: Bonus,
-					as: "bonus",
-					include: [
-						{
-							model: Partner,
-							as: "partner",
-							attributes: [["naim", "partner_name"]], // Переименовываем naim в partner_name
-						},
-						{
-							model: Category,
-							as: "category",
-							attributes: [["naim", "category_name"]], // Переименовываем naim в category_name
-						},
-					],
-					attributes: ["id", "naim", "count"],
-				},
-			],
-			attributes: ["id_bonus", "time_nach", "is_expired"],
-		});
-
 		const bonuses = await NachBonus.findAll({
 			where: {
 				id_volonter: volonter.id,
-				is_expired: true, // Получаем только неистекшие бонусы
 			},
 			include: [
 				{
@@ -442,26 +362,18 @@ app.post("/bonuses_volonter", isVolonter, async (req, res) => {
 					attributes: ["id", "naim", "count"],
 				},
 			],
-			attributes: ["id_bonus", "time_nach", "is_expired"],
+			attributes: ["id_bonus", "date_nach"],
 		});
 
 		// Формируем ответ
 		const result = {
-			resultBonus: activeBonuses.map((nachBonus) => ({
+			resultBonus: bonuses.map((nachBonus) => ({
 				bonus_id: 2147483647 - nachBonus.id_bonus, // Генерация идентификатора бонуса исходя из значения id и его максильного значения
 				bonus_name: nachBonus.bonus.naim,
 				partner: nachBonus.bonus.partner.naim,
 				category: nachBonus.bonus.category?.naim || null,
 				count: nachBonus.bonus.count,
-				time_received: nachBonus.time_nach,
-			})),
-			resultExpiredBonus: expiredBonuses.map((nachBonus) => ({
-				bonus_id: 2147483647 - nachBonus.id_bonus, // Генерация идентификатора бонуса исходя из значения id и его максильного значения
-				bonus_name: nachBonus.bonus.naim,
-				partner: nachBonus.bonus.partner.naim,
-				category: nachBonus.bonus.category?.naim || null,
-				count: nachBonus.bonus.count,
-				time_received: nachBonus.time_nach,
+				time_received: nachBonus.date_nach,
 			})),
 		};
 
@@ -813,7 +725,6 @@ app.get("/user_info", async (req, res) => {
 							account.volonter.nachBonuses?.map((nachBonus) => ({
 								id: nachBonus.id,
 								date: nachBonus.date_nach,
-								isExpired: nachBonus.is_expired,
 								bonus: nachBonus.bonus
 									? {
 											id: nachBonus.bonus.id,
