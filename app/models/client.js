@@ -9,11 +9,7 @@ const sequelize = new Sequelize(
 	String(DB_PASSWORD),
 	{
 		host: String(DB_HOST),
-		port: Number(DB_PORT),
-		dialect: "postgres",
-		define: {
-			timestamps: false,
-		},
+		dialect: "postgres"
 	}
 );
 
